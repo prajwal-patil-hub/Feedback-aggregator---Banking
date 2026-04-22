@@ -1,0 +1,119 @@
+{
+  "name": "Bank Feedback Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e01-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shape an error payload that's safe to post to Slack.\nconst j = $input.first().json;\nconst err = j.execution || {};\nconst last = (err.lastNodeExecuted) || (j.lastNodeExecuted) || 'unknown';\nconst msg = (j.execution && j.execution.error && j.execution.error.message)\n  || (j.error && j.error.message)\n  || 'Unknown error';\nconst stack = (j.execution && j.execution.error && j.execution.error.stack)\n  || (j.error && j.error.stack)\n  || '';\nconst wfName = (j.workflow && j.workflow.name) || 'unknown-workflow';\nconst execId = (j.execution && j.execution.id) || j.executionId || 'n/a';\nconst url = (j.execution && j.execution.url) || '';\nreturn [{\n  json: {\n    wf: wfName,\n    node: last,\n    message: msg,\n    stack: stack.slice(0, 1500),\n    exec_id: execId,\n    exec_url: url,\n    ts: new Date().toISOString()\n  }\n}];\n"
+      },
+      "id": "e02-shape",
+      "name": "Shape Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-180, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_OPS_CHANNEL || '#bank-feedback-ops' }}",
+          "mode": "name"
+        },
+        "text": "=:warning: *Workflow error* — `{{$json.wf}}`\n*Node:* `{{$json.node}}`\n*Message:* {{$json.message}}\n*Execution:* {{ $json.exec_url ? ('<' + $json.exec_url + '|#' + $json.exec_id + '>') : $json.exec_id }}\n```{{ ($json.stack || '').slice(0, 1200) }}```",
+        "otherOptions": {}
+      },
+      "id": "e03-slack",
+      "name": "Slack: Ops Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [60, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "slackApi": {
+          "id": "slack-bot",
+          "name": "Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bank_feedback_run_log (run_id, started_at, finished_at, status)\nVALUES (gen_random_uuid(), NOW(), NOW(), 'error')\nON CONFLICT (run_id) DO NOTHING;",
+        "options": {}
+      },
+      "id": "e04-log",
+      "name": "Log Error Row",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [280, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-main",
+          "name": "Postgres Main"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Shape Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Error": {
+      "main": [
+        [
+          {
+            "node": "Slack: Ops Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Ops Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Error Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "timezone": "Asia/Kolkata"
+  },
+  "tags": [
+    { "name": "banking" },
+    { "name": "error-handler" }
+  ],
+  "active": false,
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

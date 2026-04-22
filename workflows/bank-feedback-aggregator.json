@@ -1,0 +1,864 @@
+{
+  "name": "Bank Feedback Aggregator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "01-cron-trigger",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [-1760, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Central config: list of Indian banks to monitor and their per-source query hints.\n// Edit this node to add/remove banks without touching downstream logic.\nconst banks = [\n  {\n    bank_name: 'HDFC Bank',\n    place_query: 'HDFC Bank branch India',\n    twitter_query: '(\"HDFC Bank\" OR \"@HDFC_Bank\") -is:retweet lang:en',\n    scraper_slug: 'hdfc-bank'\n  },\n  {\n    bank_name: 'ICICI Bank',\n    place_query: 'ICICI Bank branch India',\n    twitter_query: '(\"ICICI Bank\" OR \"@ICICIBank\") -is:retweet lang:en',\n    scraper_slug: 'icici-bank'\n  },\n  {\n    bank_name: 'State Bank of India',\n    place_query: 'State Bank of India branch',\n    twitter_query: '(\"SBI\" OR \"State Bank of India\" OR \"@TheOfficialSBI\") -is:retweet lang:en',\n    scraper_slug: 'sbi'\n  },\n  {\n    bank_name: 'Axis Bank',\n    place_query: 'Axis Bank branch India',\n    twitter_query: '(\"Axis Bank\" OR \"@AxisBank\") -is:retweet lang:en',\n    scraper_slug: 'axis-bank'\n  },\n  {\n    bank_name: 'Kotak Mahindra Bank',\n    place_query: 'Kotak Mahindra Bank branch India',\n    twitter_query: '(\"Kotak\" OR \"@KotakBankLtd\") -is:retweet lang:en',\n    scraper_slug: 'kotak-mahindra-bank'\n  }\n];\n\nconst runId = $jmespath({ _: 'x' }, '_') ? '' : '';\n// Generate a deterministic run_id per execution for audit correlation\nconst crypto = require('crypto');\nconst run_id = crypto.randomUUID();\nconst run_started_at = new Date().toISOString();\n\nreturn banks.map(b => ({\n  json: {\n    ...b,\n    run_id,\n    run_started_at,\n    lookback_hours: 24\n  }\n}));\n"
+      },
+      "id": "02-banks-config",
+      "name": "Banks Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1540, 400]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "03-rate-limit-wait",
+      "name": "Throttle Per Bank",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-1320, 400]
+    },
+    {
+      "parameters": {
+        "url": "=https://places.googleapis.com/v1/places:searchText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.id,places.displayName,places.formattedAddress,places.rating"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"textQuery\": \"{{$json.place_query}}\",\n  \"pageSize\": 10,\n  \"languageCode\": \"en\",\n  \"regionCode\": \"IN\"\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "10-gmaps-search",
+      "name": "Google Places: Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1100, 100],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "google-places-api",
+          "name": "Google Places API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten the places[] array into one item per branch, carry bank context forward.\nconst out = [];\nfor (const item of $input.all()) {\n  const bank = item.json.bank_name || $('Banks Config').item.json.bank_name;\n  const run_id = item.json.run_id || $('Banks Config').item.json.run_id;\n  const places = (item.json.places || []);\n  for (const p of places) {\n    out.push({\n      json: {\n        bank_name: bank,\n        run_id,\n        place_id: p.id,\n        branch: (p.displayName && p.displayName.text) || null,\n        address: p.formattedAddress || null,\n        place_rating: p.rating || null\n      }\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "11-gmaps-flatten-places",
+      "name": "Flatten Places",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-880, 100]
+    },
+    {
+      "parameters": {
+        "url": "=https://places.googleapis.com/v1/places/{{$json.place_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "id,displayName,reviews,googleMapsUri"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "12-gmaps-details",
+      "name": "Google Places: Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-660, 100],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "google-places-api",
+          "name": "Google Places API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map Google Place reviews -> raw intermediate schema.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const reviews = j.reviews || [];\n  const branchName = (j.displayName && j.displayName.text) || item.json.branch || null;\n  const placeUri = j.googleMapsUri || null;\n  for (const r of reviews) {\n    out.push({\n      json: {\n        bank_name: item.json.bank_name,\n        run_id: item.json.run_id,\n        branch: branchName,\n        rating: typeof r.rating === 'number' ? r.rating : null,\n        feedback_text: (r.originalText && r.originalText.text) || (r.text && r.text.text) || '',\n        author: (r.authorAttribution && r.authorAttribution.displayName) || null,\n        review_date: r.publishTime || null,\n        source: 'Google Maps',\n        source_url: (r.authorAttribution && r.authorAttribution.uri) || placeUri\n      }\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "13-gmaps-normalize",
+      "name": "Google: Map To Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-440, 100]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.twitter.com/2/tweets/search/recent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{$json.twitter_query}}"
+            },
+            {
+              "name": "max_results",
+              "value": "50"
+            },
+            {
+              "name": "tweet.fields",
+              "value": "created_at,author_id,lang,public_metrics"
+            },
+            {
+              "name": "expansions",
+              "value": "author_id"
+            },
+            {
+              "name": "user.fields",
+              "value": "username,name"
+            },
+            {
+              "name": "start_time",
+              "value": "={{ $now.minus({hours: $json.lookback_hours}).toUTC().toISO() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "20-twitter-search",
+      "name": "Twitter: Recent Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1100, 400],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "twitter-bearer",
+          "name": "Twitter Bearer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Join tweets with user expansions and map to raw schema.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const tweets = j.data || [];\n  const users = ((j.includes && j.includes.users) || []).reduce((m, u) => { m[u.id] = u; return m; }, {});\n  const bank_name = $('Banks Config').item.json.bank_name;\n  const run_id = $('Banks Config').item.json.run_id;\n  for (const t of tweets) {\n    const u = users[t.author_id] || {};\n    out.push({\n      json: {\n        bank_name,\n        run_id,\n        branch: null,\n        rating: null,\n        feedback_text: t.text || '',\n        author: u.username ? '@' + u.username : null,\n        review_date: t.created_at || null,\n        source: 'Twitter',\n        source_url: u.username ? `https://twitter.com/${u.username}/status/${t.id}` : null\n      }\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "21-twitter-normalize",
+      "name": "Twitter: Map To Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-660, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SCRAPER_URL || 'https://scraper.internal.example.com/reviews' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "bank",
+              "value": "={{$json.scraper_slug}}"
+            },
+            {
+              "name": "since_hours",
+              "value": "={{$json.lookback_hours}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "30-scraper-fetch",
+      "name": "Generic Scraper Intake",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1100, 700],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Accept scraper payloads shaped as { reviews: [ {review_text, rating, author, date, url, source_name} ] }\n// or as a raw array of the same objects.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const bank_name = $('Banks Config').item.json.bank_name;\n  const run_id = $('Banks Config').item.json.run_id;\n  const arr = Array.isArray(j) ? j : (j.reviews || []);\n  for (const r of arr) {\n    out.push({\n      json: {\n        bank_name,\n        run_id,\n        branch: r.branch || null,\n        rating: r.rating != null ? Number(r.rating) : null,\n        feedback_text: r.review_text || r.text || '',\n        author: r.author || null,\n        review_date: r.date || r.review_date || null,\n        source: r.source_name || 'Scraper',\n        source_url: r.url || null\n      }\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "31-scraper-normalize",
+      "name": "Scraper: Map To Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-660, 700]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "40-merge-sources",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [-220, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Unified normalization + defensive cleanup.\n// Drops rows with empty feedback_text, normalizes review_date to ISO UTC.\nconst { DateTime } = require('luxon');\n\nfunction toIsoUtc(v) {\n  if (!v) return null;\n  try {\n    const dt = DateTime.fromISO(String(v), { zone: 'utc' });\n    if (dt.isValid) return dt.toUTC().toISO();\n    const jsd = new Date(v);\n    return isNaN(jsd.getTime()) ? null : jsd.toISOString();\n  } catch (_) {\n    return null;\n  }\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const text = String(j.feedback_text || '').trim();\n  if (!text) continue; // skip empty\n  out.push({\n    json: {\n      run_id: j.run_id || null,\n      bank_name: String(j.bank_name || '').trim(),\n      branch: j.branch ? String(j.branch).trim() : null,\n      rating: j.rating != null && !isNaN(Number(j.rating)) ? Number(j.rating) : null,\n      feedback_text: text.slice(0, 8000), // cap payload\n      author: j.author ? String(j.author).trim().slice(0, 200) : null,\n      review_date: toIsoUtc(j.review_date) || new Date().toISOString(),\n      source: String(j.source || 'Unknown'),\n      source_url: j.source_url || null\n    }\n  });\n}\nreturn out;\n"
+      },
+      "id": "41-normalize-unified",
+      "name": "Normalize To Unified Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deterministic SHA256 dedup hash = sha256(source + feedback_text + review_date)\nconst crypto = require('crypto');\nreturn $input.all().map(item => {\n  const j = item.json;\n  const h = crypto.createHash('sha256')\n    .update(String(j.source) + String(j.feedback_text) + String(j.review_date))\n    .digest('hex');\n  return { json: { ...j, hash: h } };\n});\n"
+      },
+      "id": "42-hash",
+      "name": "Add SHA256 Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 1 AS exists_flag FROM bank_customer_feedback WHERE hash = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.hash }}"
+        }
+      },
+      "id": "43-check-duplicate",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [440, 400],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Postgres node is 1:1 with inputs but returns 0 rows on miss.\n// Merge dedup answer back with the original record by position.\nconst inputRecords = $('Add SHA256 Hash').all();\nconst dbRows = $input.all();\nconst out = [];\nfor (let i = 0; i < inputRecords.length; i++) {\n  const rec = inputRecords[i].json;\n  const row = dbRows[i] && dbRows[i].json;\n  const duplicate = !!(row && (row.exists_flag === 1 || row.exists_flag === '1'));\n  out.push({ json: { ...rec, duplicate } });\n}\nreturn out;\n"
+      },
+      "id": "44-merge-dup-flag",
+      "name": "Attach Duplicate Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "dup-check",
+              "leftValue": "={{$json.duplicate}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "45-if-duplicate",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"temperature\": 0,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a sentiment classifier for Indian retail-banking customer feedback. Return strict JSON: {\\\"sentiment\\\":\\\"positive|neutral|negative\\\",\\\"sentiment_score\\\":0-1}. sentiment_score is the model's confidence in the chosen label.\"},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify(($json.feedback_text || '').slice(0, 4000)) }} }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "50-openai-sentiment",
+      "name": "OpenAI Sentiment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 500],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-api",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the model's JSON content; fall back to neutral on any error.\nconst allowed = new Set(['positive', 'neutral', 'negative']);\nconst upstream = $('Is Duplicate?').all();\nconst outs = [];\nfor (let i = 0; i < upstream.length; i++) {\n  const base = upstream[i].json;\n  if (base.duplicate) continue; // defensive — duplicates don't reach here\n  const resp = $input.all()[i] && $input.all()[i].json;\n  let sentiment = 'neutral';\n  let sentiment_score = 0.5;\n  try {\n    const content = resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content;\n    if (content) {\n      const parsed = JSON.parse(content);\n      if (allowed.has(String(parsed.sentiment).toLowerCase())) sentiment = String(parsed.sentiment).toLowerCase();\n      if (typeof parsed.sentiment_score === 'number') {\n        sentiment_score = Math.max(0, Math.min(1, parsed.sentiment_score));\n      }\n    }\n  } catch (_) { /* keep neutral default */ }\n  outs.push({ json: { ...base, sentiment, sentiment_score } });\n}\nreturn outs;\n"
+      },
+      "id": "51-attach-sentiment",
+      "name": "Attach Sentiment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bank_customer_feedback\n  (hash, bank_name, branch, rating, feedback_text, author,\n   sentiment, sentiment_score, source, source_url, review_date)\nVALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)\nON CONFLICT (hash) DO NOTHING\nRETURNING id, hash;",
+        "options": {
+          "queryReplacement": "={{$json.hash}},={{$json.bank_name}},={{$json.branch}},={{$json.rating}},={{$json.feedback_text}},={{$json.author}},={{$json.sentiment}},={{$json.sentiment_score}},={{$json.source}},={{$json.source_url}},={{$json.review_date}}"
+        }
+      },
+      "id": "52-insert-feedback",
+      "name": "Insert Feedback",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1540, 500],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Attach inserted=true/false flag based on INSERT ... ON CONFLICT output.\nconst upstream = $('Attach Sentiment').all();\nconst dbRows = $input.all();\nconst out = [];\nfor (let i = 0; i < upstream.length; i++) {\n  const base = upstream[i].json;\n  const row = dbRows[i] && dbRows[i].json;\n  const inserted = !!(row && row.id);\n  out.push({ json: { ...base, inserted, row_id: row && row.id ? row.id : null } });\n}\nreturn out;\n"
+      },
+      "id": "53-attach-insert-flag",
+      "name": "Attach Insert Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "neg-sent",
+              "leftValue": "={{$json.sentiment}}",
+              "rightValue": "negative",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "low-rating",
+              "leftValue": "={{ $json.rating == null ? 0 : $json.rating }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            },
+            {
+              "id": "was-inserted",
+              "leftValue": "={{$json.inserted}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "60-if-alert",
+      "name": "Alert Worthy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1980, 500]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_ALERT_CHANNEL || '#bank-feedback-alerts' }}",
+          "mode": "name"
+        },
+        "text": "=:rotating_light: *Negative feedback detected for {{$json.bank_name}}*\n> {{ ($json.feedback_text || '').replace(/\\n/g, ' ').slice(0, 500) }}\n*Rating:* {{$json.rating || 'n/a'}}  |  *Source:* {{$json.source}}  |  *Author:* {{$json.author || 'anon'}}\n{{ $json.source_url ? ('<' + $json.source_url + '|Open source>') : '' }}",
+        "otherOptions": {}
+      },
+      "id": "61-slack-alert",
+      "name": "Slack: Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2200, 400],
+      "continueOnFail": true,
+      "credentials": {
+        "slackApi": {
+          "id": "slack-bot",
+          "name": "Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "70-merge-final",
+      "name": "Collect All Outcomes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2420, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate counters across every record that came through.\n// Pulls from multiple upstream nodes so duplicates are also counted.\nconst dupNode = $('Attach Duplicate Flag').all();\nconst insertedNode = $('Attach Insert Flag').all();\n\nconst total_reviews_fetched = dupNode.length;\nconst total_duplicates_skipped = dupNode.filter(i => i.json.duplicate).length;\nconst total_inserted = insertedNode.filter(i => i.json.inserted).length;\nconst total_alerts = insertedNode.filter(i => i.json.inserted && i.json.sentiment === 'negative' && (i.json.rating != null && i.json.rating <= 2)).length;\nconst total_errors = Math.max(0, total_reviews_fetched - total_duplicates_skipped - total_inserted);\n\nconst run_id = (dupNode[0] && dupNode[0].json.run_id) || null;\nconst run_started_at = (dupNode[0] && dupNode[0].json.run_started_at) || null;\nconst run_finished_at = new Date().toISOString();\n\nreturn [{\n  json: {\n    status: 'success',\n    run_id,\n    run_started_at,\n    run_finished_at,\n    total_reviews_fetched,\n    total_inserted,\n    total_duplicates_skipped,\n    total_alerts,\n    total_errors\n  }\n}];\n"
+      },
+      "id": "71-aggregate",
+      "name": "Aggregate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2640, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bank_feedback_run_log\n  (run_id, started_at, finished_at, total_fetched, total_inserted, total_duplicates, total_alerts, status)\nVALUES (COALESCE($1, gen_random_uuid()), COALESCE($2::timestamptz, NOW()), $3::timestamptz, $4, $5, $6, $7, $8)\nON CONFLICT (run_id) DO UPDATE SET\n  finished_at = EXCLUDED.finished_at,\n  total_fetched = EXCLUDED.total_fetched,\n  total_inserted = EXCLUDED.total_inserted,\n  total_duplicates = EXCLUDED.total_duplicates,\n  total_alerts = EXCLUDED.total_alerts,\n  status = EXCLUDED.status;",
+        "options": {
+          "queryReplacement": "={{$json.run_id}},={{$json.run_started_at}},={{$json.run_finished_at}},={{$json.total_reviews_fetched}},={{$json.total_inserted}},={{$json.total_duplicates_skipped}},={{$json.total_alerts}},={{$json.status}}"
+        }
+      },
+      "id": "72-log-run",
+      "name": "Log Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2860, 500],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-main",
+          "name": "Postgres Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final workflow output payload.\nconst summary = $('Aggregate Summary').first().json;\nreturn [{ json: summary }];\n"
+      },
+      "id": "73-return",
+      "name": "Return Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3080, 500]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Banks Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Banks Config": {
+      "main": [
+        [
+          {
+            "node": "Throttle Per Bank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Throttle Per Bank": {
+      "main": [
+        [
+          {
+            "node": "Google Places: Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Twitter: Recent Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generic Scraper Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Places: Search": {
+      "main": [
+        [
+          {
+            "node": "Flatten Places",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Places": {
+      "main": [
+        [
+          {
+            "node": "Google Places: Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Places: Details": {
+      "main": [
+        [
+          {
+            "node": "Google: Map To Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google: Map To Raw": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitter: Recent Search": {
+      "main": [
+        [
+          {
+            "node": "Twitter: Map To Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitter: Map To Raw": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Generic Scraper Intake": {
+      "main": [
+        [
+          {
+            "node": "Scraper: Map To Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scraper: Map To Raw": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize To Unified Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize To Unified Schema": {
+      "main": [
+        [
+          {
+            "node": "Add SHA256 Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add SHA256 Hash": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Attach Duplicate Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Duplicate Flag": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Collect All Outcomes",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "OpenAI Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Attach Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Insert Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Feedback": {
+      "main": [
+        [
+          {
+            "node": "Attach Insert Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Insert Flag": {
+      "main": [
+        [
+          {
+            "node": "Alert Worthy?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Worthy?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect All Outcomes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect All Outcomes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect All Outcomes": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Summary": {
+      "main": [
+        [
+          {
+            "node": "Log Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Run": {
+      "main": [
+        [
+          {
+            "node": "Return Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "timezone": "Asia/Kolkata",
+    "errorWorkflow": "bank-feedback-error-handler"
+  },
+  "tags": [
+    { "name": "banking" },
+    { "name": "feedback" },
+    { "name": "sentiment" },
+    { "name": "production" }
+  ],
+  "active": false,
+  "pinData": {},
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
