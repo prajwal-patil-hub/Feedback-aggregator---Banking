@@ -24,8 +24,10 @@ Every **6 hours** the workflow:
    ```
 4. Computes a SHA-256 **dedup hash** = `sha256(source + feedback_text + review_date)`
    and skips rows that already exist in Postgres.
-5. Calls **OpenAI** (`gpt-4o-mini`, JSON mode) for sentiment classification
-   (`positive` / `neutral` / `negative`, score 0–1).
+5. Calls **Groq** (`llama-3.1-8b-instant`, JSON mode, OpenAI-compatible API,
+   free tier) for sentiment classification (`positive` / `neutral` /
+   `negative`, score 0–1). Swap the URL + model to use OpenAI, Gemini, or any
+   other OpenAI-compatible endpoint.
 6. **Inserts** into `bank_customer_feedback` with `ON CONFLICT (hash) DO NOTHING`
    as the hard dedup guarantee.
 7. Sends a **Slack alert** when `sentiment = negative` AND `rating <= 2`.
@@ -82,7 +84,7 @@ the workflow references them by name.
 | --- | --- | --- |
 | `Google Places API` | HTTP Header Auth | Name: `X-Goog-Api-Key`  Value: `<GOOGLE_PLACES_API_KEY>` |
 | `Twitter Bearer` | HTTP Header Auth | Name: `Authorization`  Value: `Bearer <TWITTER_BEARER_TOKEN>` |
-| `OpenAI API` | HTTP Header Auth | Name: `Authorization`  Value: `Bearer <OPENAI_API_KEY>` |
+| `Groq API` | HTTP Header Auth | Name: `Authorization`  Value: `Bearer <GROQ_API_KEY>` |
 | `Postgres Main` | Postgres | Host/port/db/user/password from `.env` |
 | `Slack Bot` | Slack (OAuth2 or API token) | Bot token with `chat:write` |
 
@@ -184,8 +186,10 @@ See [`sql/schema.sql`](sql/schema.sql). Key columns of
   and `continueOnFail: true` so one dead source doesn't abort the run.
 - **Rate limits**: a 2s `Wait` node throttles between banks; tune down if you
   expand the bank list.
-- **Sentiment cost**: `gpt-4o-mini` at ≈300 input tokens/review × 5 banks ×
-  ~20 reviews/run × 4 runs/day ≈ 120k tokens/day — well under $1/day.
+- **Sentiment cost**: `llama-3.1-8b-instant` on Groq's free tier covers this
+  workload (~400 reviews/day) with headroom. Upgrade to a paid tier or swap
+  in `llama-3.3-70b-versatile` for higher accuracy; both use the same
+  OpenAI-compatible endpoint.
 - **PII**: only display names are stored. Do not add profile URLs or handle
   strings that could re-identify end users beyond what's already public on
   the review platform.

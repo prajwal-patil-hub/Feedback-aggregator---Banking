@@ -326,7 +326,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.openai.com/v1/chat/completions",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -338,13 +338,13 @@
         },
         "sendBody": true,
         "bodyContentType": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"temperature\": 0,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a sentiment classifier for Indian retail-banking customer feedback. Return strict JSON: {\\\"sentiment\\\":\\\"positive|neutral|negative\\\",\\\"sentiment_score\\\":0-1}. sentiment_score is the model's confidence in the chosen label.\"},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify(($json.feedback_text || '').slice(0, 4000)) }} }\n  ]\n}",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"temperature\": 0,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a sentiment classifier for Indian retail-banking customer feedback. Return strict JSON of this exact shape: {\\\"sentiment\\\":\\\"positive|neutral|negative\\\",\\\"sentiment_score\\\":0-1}. sentiment_score is your confidence (0 to 1) in the chosen label. Respond with JSON only, no prose.\"},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify(($json.feedback_text || '').slice(0, 4000)) }} }\n  ]\n}",
         "options": {
           "timeout": 30000
         }
       },
-      "id": "50-openai-sentiment",
-      "name": "OpenAI Sentiment",
+      "id": "50-llm-sentiment",
+      "name": "Sentiment Classifier",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1100, 500],
@@ -354,8 +354,8 @@
       "continueOnFail": true,
       "credentials": {
         "httpHeaderAuth": {
-          "id": "openai-api",
-          "name": "OpenAI API"
+          "id": "groq-api",
+          "name": "Groq API"
         }
       }
     },
@@ -726,14 +726,14 @@
         ],
         [
           {
-            "node": "OpenAI Sentiment",
+            "node": "Sentiment Classifier",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Sentiment": {
+    "Sentiment Classifier": {
       "main": [
         [
           {
