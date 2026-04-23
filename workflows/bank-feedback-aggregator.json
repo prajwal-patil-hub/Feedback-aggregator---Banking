@@ -222,14 +222,61 @@
     },
     {
       "parameters": {
+        "url": "=https://www.reddit.com/r/IndiaInvestments+personalfinanceindia+india+IndianStreetBets/search.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "bank-feedback-aggregator/1.0 (n8n workflow)"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q",           "value": "={{$json.bank_name}}" },
+            { "name": "restrict_sr", "value": "on" },
+            { "name": "sort",        "value": "new" },
+            { "name": "t",           "value": "month" },
+            { "name": "limit",       "value": "25" }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "35-reddit-search",
+      "name": "Reddit: Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1100, 1000],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reddit .json endpoint returns { data: { children: [ { data: { title, selftext, author, permalink, created_utc, subreddit, score, num_comments } } ] } }\n// We include the title + body as feedback_text, and flag the subreddit in the branch field.\n// Reddit has no numeric 1-5 rating, so rating stays null; the negative-sentiment alert path\n// treats null rating as 0 (passes the rating<=2 check), so any negative Reddit post will alert.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const bank_name = $('Banks Config').item.json.bank_name;\n  const run_id = $('Banks Config').item.json.run_id;\n  const children = (j.data && j.data.children) || [];\n  for (const c of children) {\n    const p = (c && c.data) || {};\n    const title = String(p.title || '').trim();\n    const body = String(p.selftext || '').trim();\n    const text = [title, body].filter(Boolean).join('\\n\\n').trim();\n    if (!text) continue;\n    out.push({\n      json: {\n        bank_name,\n        run_id,\n        branch: p.subreddit ? `r/${p.subreddit}` : null,\n        rating: null,\n        feedback_text: text,\n        author: p.author ? `u/${p.author}` : null,\n        review_date: p.created_utc ? new Date(p.created_utc * 1000).toISOString() : null,\n        source: 'Reddit',\n        source_url: p.permalink ? `https://www.reddit.com${p.permalink}` : null\n      }\n    });\n  }\n}\nreturn out;\n"
+      },
+      "id": "36-reddit-normalize",
+      "name": "Reddit: Map To Raw",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-660, 1000]
+    },
+    {
+      "parameters": {
         "mode": "append",
+        "numberInputs": 4,
         "options": {}
       },
       "id": "40-merge-sources",
       "name": "Merge All Sources",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [-220, 400]
+      "position": [-220, 550]
     },
     {
       "parameters": {
@@ -557,6 +604,33 @@
             "node": "Generic Scraper Intake",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Reddit: Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit: Search": {
+      "main": [
+        [
+          {
+            "node": "Reddit: Map To Raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit: Map To Raw": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 3
           }
         ]
       ]

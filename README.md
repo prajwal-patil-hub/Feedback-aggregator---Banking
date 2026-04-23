@@ -11,12 +11,19 @@ Every **6 hours** the workflow:
 
 1. Loads a config-driven list of banks (HDFC, ICICI, SBI, Axis, Kotak — edit
    the *Banks Config* node to add more).
-2. Fans out to three data sources **in parallel**:
+2. Fans out to four data sources **in parallel**:
    - **Google Maps / Google Business reviews** via Google Places API v1
      (`places:searchText` → `places/{id}` details with `reviews` field mask)
    - **Twitter / X** via `GET /2/tweets/search/recent` (last 24h)
-   - **Generic scraper intake** — a configurable HTTP endpoint that returns
-     JSON for sites like MouthShut, Trustpilot. Plug in your own scraper.
+   - **Reddit** — public `.json` endpoint searching posts in
+     `r/IndiaInvestments`, `r/personalfinanceindia`, `r/india`,
+     `r/IndianStreetBets` (last 30 days). No auth required, just a
+     `User-Agent` header. Subreddit is stored in the `branch` field as
+     `r/IndiaInvestments` etc.
+   - **Generic scraper intake** — an HTTP endpoint returning JSON for sites
+     like MouthShut, Trustpilot, BankBazaar, ConsumerComplaintsIndia. Ships
+     pointed at the mock dataset in `mock-data/reviews.json`. Swap in an
+     Apify actor URL or your own scraper to go live.
 3. Merges all branches into a **unified schema**:
    ```
    { bank_name, branch, rating, feedback_text, author,
