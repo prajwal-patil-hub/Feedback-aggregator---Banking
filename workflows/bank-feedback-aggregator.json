@@ -195,20 +195,7 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.SCRAPER_URL || 'https://scraper.internal.example.com/reviews' }}",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "bank",
-              "value": "={{$json.scraper_slug}}"
-            },
-            {
-              "name": "since_hours",
-              "value": "={{$json.lookback_hours}}"
-            }
-          ]
-        },
+        "url": "https://raw.githubusercontent.com/prajwal-patil-hub/Feedback-aggregator---Banking/claude/n8n-bank-feedback-workflow-z2FNm/mock-data/reviews.json",
         "options": {
           "timeout": 30000
         }
@@ -225,7 +212,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Accept scraper payloads shaped as { reviews: [ {review_text, rating, author, date, url, source_name} ] }\n// or as a raw array of the same objects.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const bank_name = $('Banks Config').item.json.bank_name;\n  const run_id = $('Banks Config').item.json.run_id;\n  const arr = Array.isArray(j) ? j : (j.reviews || []);\n  for (const r of arr) {\n    out.push({\n      json: {\n        bank_name,\n        run_id,\n        branch: r.branch || null,\n        rating: r.rating != null ? Number(r.rating) : null,\n        feedback_text: r.review_text || r.text || '',\n        author: r.author || null,\n        review_date: r.date || r.review_date || null,\n        source: r.source_name || 'Scraper',\n        source_url: r.url || null\n      }\n    });\n  }\n}\nreturn out;\n"
+        "jsCode": "// Scraper payload shape: { reviews: [ {bank, branch, review_text, rating, author, date, url, source_name} ] }\n// The mock dataset covers all 5 banks, so filter to the current bank to avoid 5x duplicates\n// (this node runs once per bank item fanned out of Banks Config).\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const bank_name = $('Banks Config').item.json.bank_name;\n  const run_id = $('Banks Config').item.json.run_id;\n  const arr = Array.isArray(j) ? j : (j.reviews || []);\n  for (const r of arr) {\n    if (r.bank && r.bank !== bank_name) continue;\n    out.push({\n      json: {\n        bank_name: r.bank || bank_name,\n        run_id,\n        branch: r.branch || null,\n        rating: r.rating != null ? Number(r.rating) : null,\n        feedback_text: r.review_text || r.text || '',\n        author: r.author || null,\n        review_date: r.date || r.review_date || null,\n        source: r.source_name || 'Scraper',\n        source_url: r.url || null\n      }\n    });\n  }\n}\nreturn out;\n"
       },
       "id": "31-scraper-normalize",
       "name": "Scraper: Map To Raw",
@@ -457,7 +444,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "={{ $env.SLACK_ALERT_CHANNEL || '#bank-feedback-alerts' }}",
+          "value": "#bank-feedback-alerts",
           "mode": "name"
         },
         "text": "=:rotating_light: *Negative feedback detected for {{$json.bank_name}}*\n> {{ ($json.feedback_text || '').replace(/\\n/g, ' ').slice(0, 500) }}\n*Rating:* {{$json.rating || 'n/a'}}  |  *Source:* {{$json.source}}  |  *Author:* {{$json.author || 'anon'}}\n{{ $json.source_url ? ('<' + $json.source_url + '|Open source>') : '' }}",

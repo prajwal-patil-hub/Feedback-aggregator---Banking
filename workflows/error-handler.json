@@ -26,7 +26,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "={{ $env.SLACK_OPS_CHANNEL || '#bank-feedback-ops' }}",
+          "value": "#bank-feedback-ops",
           "mode": "name"
         },
         "text": "=:warning: *Workflow error* — `{{$json.wf}}`\n*Node:* `{{$json.node}}`\n*Message:* {{$json.message}}\n*Execution:* {{ $json.exec_url ? ('<' + $json.exec_url + '|#' + $json.exec_id + '>') : $json.exec_id }}\n```{{ ($json.stack || '').slice(0, 1200) }}```",

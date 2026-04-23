@@ -1,0 +1,215 @@
+{
+  "_note": "Mock customer feedback dataset for Indian banks. Used by the Generic Scraper Intake node as a stand-in for a real MouthShut/Trustpilot scraper. Each review carries its own 'bank' field so the Scraper: Map To Raw node can attribute it correctly across the 5 configured banks.",
+  "reviews": [
+    {
+      "bank": "HDFC Bank",
+      "branch": "Andheri East, Mumbai",
+      "review_text": "Worst experience with HDFC. Mobile app crashes every time I try to do NEFT. Customer care keeps putting me on hold for 40 minutes. Considering switching banks.",
+      "rating": 1,
+      "author": "rahul_sharma",
+      "date": "2026-04-22T09:15:00Z",
+      "url": "https://mouthshut.com/review/hdfc-bank-andheri/1001",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "HDFC Bank",
+      "branch": "Koramangala, Bangalore",
+      "review_text": "HDFC premium banking is excellent. My relationship manager is responsive and helped me close my home loan paperwork in 2 days.",
+      "rating": 5,
+      "author": "priya_nair",
+      "date": "2026-04-22T14:42:00Z",
+      "url": "https://trustpilot.com/review/hdfc/1002",
+      "source_name": "Trustpilot"
+    },
+    {
+      "bank": "HDFC Bank",
+      "branch": "Sector 18, Noida",
+      "review_text": "Average service. ATM often out of cash on weekends. Branch staff is polite but processes are slow.",
+      "rating": 3,
+      "author": "amit_verma",
+      "date": "2026-04-21T18:20:00Z",
+      "url": "https://bankbazaar.com/reviews/hdfc-noida/1003",
+      "source_name": "BankBazaar"
+    },
+    {
+      "bank": "HDFC Bank",
+      "branch": "T. Nagar, Chennai",
+      "review_text": "Charged 590 rupees as non-maintenance fee without any warning SMS. Complaint ignored for 3 weeks. Pathetic transparency.",
+      "rating": 2,
+      "author": "suresh_iyer",
+      "date": "2026-04-23T08:05:00Z",
+      "url": "https://consumercomplaints.in/hdfc/1004",
+      "source_name": "ConsumerComplaintsIndia"
+    },
+    {
+      "bank": "ICICI Bank",
+      "branch": "Banjara Hills, Hyderabad",
+      "review_text": "ICICI iMobile app is fantastic. UPI, investments, cards all in one place. My go-to bank for 8 years.",
+      "rating": 5,
+      "author": "kavya_reddy",
+      "date": "2026-04-22T11:30:00Z",
+      "url": "https://trustpilot.com/review/icici/2001",
+      "source_name": "Trustpilot"
+    },
+    {
+      "bank": "ICICI Bank",
+      "branch": "Park Street, Kolkata",
+      "review_text": "Fraudulent transaction of 18000 rupees and ICICI took 21 days to refund. Unacceptable for a top private bank. Never recommending them again.",
+      "rating": 1,
+      "author": "debanjan_ghosh",
+      "date": "2026-04-21T16:45:00Z",
+      "url": "https://mouthshut.com/review/icici-kolkata/2002",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "ICICI Bank",
+      "branch": "MG Road, Pune",
+      "review_text": "Home loan processed smoothly in 12 days. Documentation team was very supportive. Interest rate is competitive.",
+      "rating": 4,
+      "author": "neha_kulkarni",
+      "date": "2026-04-20T10:10:00Z",
+      "url": "https://bankbazaar.com/reviews/icici-pune/2003",
+      "source_name": "BankBazaar"
+    },
+    {
+      "bank": "ICICI Bank",
+      "branch": "Connaught Place, Delhi",
+      "review_text": "Branch manager refused to accept my FD closure request citing system issues for 4 consecutive days. Total waste of time.",
+      "rating": 2,
+      "author": "rajesh_khanna",
+      "date": "2026-04-22T13:00:00Z",
+      "url": "https://consumercomplaints.in/icici/2004",
+      "source_name": "ConsumerComplaintsIndia"
+    },
+    {
+      "bank": "State Bank of India",
+      "branch": "Fort, Mumbai",
+      "review_text": "SBI online banking is surprisingly good now. YONO app redesign has made daily transactions much easier. Still some queues at branch though.",
+      "rating": 4,
+      "author": "deepak_mehta",
+      "date": "2026-04-22T09:50:00Z",
+      "url": "https://trustpilot.com/review/sbi-fort/3001",
+      "source_name": "Trustpilot"
+    },
+    {
+      "bank": "State Bank of India",
+      "branch": "Gomti Nagar, Lucknow",
+      "review_text": "Horrible service at this SBI branch. Staff takes 2 hour lunch breaks. Waited 3 hours just to update PAN. Would give zero stars if I could.",
+      "rating": 1,
+      "author": "anupama_singh",
+      "date": "2026-04-23T10:20:00Z",
+      "url": "https://mouthshut.com/review/sbi-lucknow/3002",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "State Bank of India",
+      "branch": "Indiranagar, Bangalore",
+      "review_text": "Pension processing is always on time. Staff is respectful to senior citizens at this branch.",
+      "rating": 5,
+      "author": "major_krishnan",
+      "date": "2026-04-21T12:00:00Z",
+      "url": "https://bankbazaar.com/reviews/sbi-indiranagar/3003",
+      "source_name": "BankBazaar"
+    },
+    {
+      "bank": "State Bank of India",
+      "branch": "Salt Lake, Kolkata",
+      "review_text": "Locker rent increased without prior notice. Customer is always the last priority. Public sector inefficiency at its peak.",
+      "rating": 2,
+      "author": "sudipto_basu",
+      "date": "2026-04-22T15:30:00Z",
+      "url": "https://consumercomplaints.in/sbi/3004",
+      "source_name": "ConsumerComplaintsIndia"
+    },
+    {
+      "bank": "State Bank of India",
+      "branch": "Jubilee Hills, Hyderabad",
+      "review_text": "Decent experience overall. KYC update took 3 visits but the staff was helpful once they understood the issue.",
+      "rating": 3,
+      "author": "vishnu_rao",
+      "date": "2026-04-20T17:15:00Z",
+      "url": "https://mouthshut.com/review/sbi-jubilee/3005",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "Axis Bank",
+      "branch": "BKC, Mumbai",
+      "review_text": "Priority banking at Axis BKC is top-notch. Dedicated RM answers calls even on Sundays. Worth the minimum balance.",
+      "rating": 5,
+      "author": "tanvi_shah",
+      "date": "2026-04-22T08:30:00Z",
+      "url": "https://trustpilot.com/review/axis-bkc/4001",
+      "source_name": "Trustpilot"
+    },
+    {
+      "bank": "Axis Bank",
+      "branch": "Rajouri Garden, Delhi",
+      "review_text": "Credit card was blocked without warning. Agent on call was rude and hung up twice. Applied for card closure today.",
+      "rating": 1,
+      "author": "mohit_gupta",
+      "date": "2026-04-23T07:45:00Z",
+      "url": "https://mouthshut.com/review/axis-delhi/4002",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "Axis Bank",
+      "branch": "Anna Nagar, Chennai",
+      "review_text": "Good digital experience. The Axis mobile app is snappy and UPI works reliably. Physical branch is crowded though.",
+      "rating": 4,
+      "author": "lakshmi_rajan",
+      "date": "2026-04-21T14:20:00Z",
+      "url": "https://bankbazaar.com/reviews/axis-chennai/4003",
+      "source_name": "BankBazaar"
+    },
+    {
+      "bank": "Axis Bank",
+      "branch": "Viman Nagar, Pune",
+      "review_text": "Hidden charges on my savings account. Quarterly fees never disclosed at account opening. Misleading fine print.",
+      "rating": 2,
+      "author": "ashish_patil",
+      "date": "2026-04-22T19:00:00Z",
+      "url": "https://consumercomplaints.in/axis/4004",
+      "source_name": "ConsumerComplaintsIndia"
+    },
+    {
+      "bank": "Kotak Mahindra Bank",
+      "branch": "Powai, Mumbai",
+      "review_text": "Kotak 811 zero balance account is perfect for students. Everything digital, KYC was done via video in 5 minutes.",
+      "rating": 5,
+      "author": "rohan_desai",
+      "date": "2026-04-22T10:05:00Z",
+      "url": "https://trustpilot.com/review/kotak-811/5001",
+      "source_name": "Trustpilot"
+    },
+    {
+      "bank": "Kotak Mahindra Bank",
+      "branch": "Whitefield, Bangalore",
+      "review_text": "Customer service is the worst I have experienced. They transferred my call 7 times and still couldn't resolve a simple debit card replacement.",
+      "rating": 1,
+      "author": "sneha_pillai",
+      "date": "2026-04-23T09:30:00Z",
+      "url": "https://mouthshut.com/review/kotak-whitefield/5002",
+      "source_name": "MouthShut"
+    },
+    {
+      "bank": "Kotak Mahindra Bank",
+      "branch": "Alkapuri, Vadodara",
+      "review_text": "Savings interest rate is competitive compared to other private banks. App has lots of features but takes time to learn.",
+      "rating": 4,
+      "author": "harsh_patel",
+      "date": "2026-04-21T16:00:00Z",
+      "url": "https://bankbazaar.com/reviews/kotak-vadodara/5003",
+      "source_name": "BankBazaar"
+    },
+    {
+      "bank": "Kotak Mahindra Bank",
+      "branch": "Sector 29, Gurgaon",
+      "review_text": "Branch opening hours are too limited. Only 10am to 3:30pm on weekdays. Working professionals have no chance of visiting.",
+      "rating": 2,
+      "author": "kiran_bhatia",
+      "date": "2026-04-22T17:30:00Z",
+      "url": "https://consumercomplaints.in/kotak/5004",
+      "source_name": "ConsumerComplaintsIndia"
+    }
+  ]
+}
