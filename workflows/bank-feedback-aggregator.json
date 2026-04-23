@@ -41,6 +41,7 @@
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "=https://places.googleapis.com/v1/places:searchText",
         "sendHeaders": true,
         "headerParameters": {
@@ -326,6 +327,7 @@
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "sendHeaders": true,
         "headerParameters": {
